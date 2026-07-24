@@ -17,6 +17,7 @@ from model_loader import (
     MODEL_FILENAME, META_FILENAME,
     load_all_models, load_prepared_source, predict_all_splits,
     metrics_table, forecast_next,
+    get_live_source_data, forecast_next_live,
 )
 
 
@@ -68,6 +69,15 @@ selected_source = st.sidebar.selectbox(
 )
 
 st.sidebar.markdown("---")
+if st.sidebar.button("🔄 Refresh Data Live", width='stretch'):
+    get_live_source_data.clear()
+    st.rerun()
+st.sidebar.caption(
+    "Data live di-cache 5 menit per sumber. Tekan tombol ini untuk memaksa "
+    "fetch ulang sebelum cache-nya kedaluwarsa."
+)
+
+st.sidebar.markdown("---")
 st.sidebar.markdown("**Konfigurasi Model (fixed, tidak dioptimasi HHO)**")
 st.sidebar.info(f"n_input = {N_INPUT} hari\n\nn_forecast = {N_FORECAST} hari")
 
@@ -109,66 +119,89 @@ with tab1:
             "dengan nama sesuai konvensi (mis. `lstm_mimo_baseline_yfinance.h5`)."
         )
     else:
-        # Dua pipeline berbeda: baseline (harga absolut) vs hho (return-normalization)
+        # Baseline & HHO memakai preprocessing yang SAMA (return-based); ds hanya
+        # dipakai di sini untuk scaler yang di-fit saat training (TIDAK di-refit).
         ds_baseline = load_prepared_source(selected_source, 'baseline', N_INPUT, N_FORECAST)
         ds_hho = load_prepared_source(selected_source, 'hho', N_INPUT, N_FORECAST)
-        last_price = float(ds_baseline['data']['Close'].iloc[-1])
-        last_date = ds_baseline['data'].index[-1]
 
-        pred_baseline = forecast_next(baseline_entry["model"], ds_baseline, 'baseline')
-        pred_hho = forecast_next(hho_entry["model"], ds_hho, 'hho')
+        live_baseline = forecast_next_live(baseline_entry["model"], ds_baseline, selected_source)
+        live_hho = forecast_next_live(hho_entry["model"], ds_hho, selected_source)
 
-        future_dates = pd.bdate_range(start=last_date, periods=N_FORECAST + 1)[1:]
+        # --- Badge Status Live ---
+        if live_baseline["is_live"]:
+            fetched_str = (live_baseline["fetched_at"].strftime('%d %b %Y %H:%M:%S')
+                            if live_baseline["fetched_at"] else "-")
+            st.success(f"🟢 Data live berhasil diambil ({fetched_str})", icon="🟢")
+        else:
+            st.warning(
+                f"🟡 Fallback ke data historis CSV — live fetch gagal: "
+                f"{live_baseline['error'] or 'alasan tidak diketahui'}",
+                icon="🟡",
+            )
 
-        # --- Kartu Metrik ---
-        st.markdown("**Estimasi Harga Close (USD) per Horizon**")
-        cols = st.columns(N_FORECAST)
-        for h in range(N_FORECAST):
-            with cols[h]:
-                delta_b = pred_baseline[h] - last_price
-                delta_h = pred_hho[h] - last_price
-                st.metric(
-                    label=f"H+{h+1} ({future_dates[h].strftime('%d %b')})",
-                    value=f"${pred_hho[h]:,.2f}",
-                    delta=f"{delta_h:+.2f} (HHO)",
-                )
-                st.caption(f"Standar: ${pred_baseline[h]:,.2f} ({delta_b:+.2f})")
+        if live_baseline["pred"] is None or live_hho["pred"] is None:
+            st.error(
+                "Tidak bisa membuat proyeksi: "
+                f"{live_baseline['error'] or live_hho['error'] or 'data tidak cukup'}"
+            )
+        else:
+            last_price = live_baseline["last_price"]
+            last_date = live_baseline["last_date"]
+            pred_baseline = live_baseline["pred"]
+            pred_hho = live_hho["pred"]
 
-        # --- Grafik Interaktif ---
-        st.markdown("**Grafik Historis + Proyeksi (Standar vs +HHO)**")
-        lookback = 90
-        hist = ds_baseline['data']['Close'].iloc[-lookback:]
+            future_dates = pd.bdate_range(start=last_date, periods=N_FORECAST + 1)[1:]
 
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=hist.index, y=hist.values, mode='lines',
-            name='Aktual (90 hari terakhir)', line=dict(color=COLOR_ACTUAL, width=2),
-        ))
-        fig.add_trace(go.Scatter(
-            x=[last_date] + list(future_dates),
-            y=[last_price] + list(pred_baseline),
-            mode='lines+markers', name='Proyeksi — Standar',
-            line=dict(color=COLOR_BASELINE, width=2, dash='dash'),
-        ))
-        fig.add_trace(go.Scatter(
-            x=[last_date] + list(future_dates),
-            y=[last_price] + list(pred_hho),
-            mode='lines+markers', name='Proyeksi — HHO',
-            line=dict(color=COLOR_HHO, width=2, dash='dash'),
-        ))
-        fig.update_layout(
-            template=PLOTLY_TEMPLATE, height=450,
-            margin=dict(l=10, r=10, t=30, b=10),
-            xaxis_title="Tanggal", yaxis_title="Harga (USD)",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
-        )
-        st.plotly_chart(fig, width='stretch')
+            # --- Kartu Metrik ---
+            st.markdown("**Estimasi Harga Close (USD) per Horizon**")
+            cols = st.columns(N_FORECAST)
+            for h in range(N_FORECAST):
+                with cols[h]:
+                    delta_b = pred_baseline[h] - last_price
+                    delta_h = pred_hho[h] - last_price
+                    st.metric(
+                        label=f"H+{h+1} ({future_dates[h].strftime('%d %b')})",
+                        value=f"${pred_hho[h]:,.2f}",
+                        delta=f"{delta_h:+.2f} (HHO)",
+                    )
+                    st.caption(f"Standar: ${pred_baseline[h]:,.2f} ({delta_b:+.2f})")
 
-        st.caption(
-            f"Basis proyeksi: ${last_price:,.2f} pada {last_date.strftime('%d %b %Y')}. "
-            "Kedua model memprediksi 5 hari sekaligus dalam satu forward pass (strategi "
-            "MIMO), sehingga tidak ada akumulasi error antar hari."
-        )
+            # --- Grafik Interaktif ---
+            st.markdown("**Grafik Historis + Proyeksi (Standar vs +HHO)**")
+            lookback = 90
+            live_data_df = get_live_source_data(selected_source)['data']
+            hist = live_data_df['Close'].iloc[-lookback:]
+
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=hist.index, y=hist.values, mode='lines',
+                name='Aktual (90 hari terakhir)', line=dict(color=COLOR_ACTUAL, width=2),
+            ))
+            fig.add_trace(go.Scatter(
+                x=[last_date] + list(future_dates),
+                y=[last_price] + list(pred_baseline),
+                mode='lines+markers', name='Proyeksi — Standar',
+                line=dict(color=COLOR_BASELINE, width=2, dash='dash'),
+            ))
+            fig.add_trace(go.Scatter(
+                x=[last_date] + list(future_dates),
+                y=[last_price] + list(pred_hho),
+                mode='lines+markers', name='Proyeksi — HHO',
+                line=dict(color=COLOR_HHO, width=2, dash='dash'),
+            ))
+            fig.update_layout(
+                template=PLOTLY_TEMPLATE, height=450,
+                margin=dict(l=10, r=10, t=30, b=10),
+                xaxis_title="Tanggal", yaxis_title="Harga (USD)",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+            )
+            st.plotly_chart(fig, width='stretch')
+
+            st.caption(
+                f"Basis proyeksi: ${last_price:,.2f} pada {last_date.strftime('%d %b %Y')}. "
+                "Kedua model memprediksi 5 hari sekaligus dalam satu forward pass (strategi "
+                "MIMO), sehingga tidak ada akumulasi error antar hari."
+            )
 
 # ---------------------------------------------------------------------------
 # TAB 2 — PERBANDINGAN PERFORMA

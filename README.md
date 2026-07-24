@@ -29,11 +29,12 @@ lstm-yang-dioptimasi-HHO/
 │   ├── model_utils.py          # arsitektur LSTM MIMO + decode hyperparameter HHO
 │   ├── hho_utils.py            # algoritma Harris Hawks Optimization + objective function
 │   ├── evaluation.py           # RMSE/MAE/MAPE/DA per horizon + tabel ringkasan
-│   └── solution.py             # kelas pelacak hasil HHO (best individual, convergence, dll)
+│   ├── solution.py             # kelas pelacak hasil HHO (best individual, convergence, dll)
+│   └── live_data.py            # fetch OHLCV live (yfinance/nasdaq/stooq) + fallback ke CSV
 ├── models/                     # Model terlatih (.h5) + metadata JSON (n_input, n_forecast, dll)
 ├── dashboard/                  # Aplikasi Streamlit
 │   ├── app3.py                 # CANONICAL entry point -> `streamlit run app3.py`
-│   ├── model_loader.py         # load model/metadata + prediksi + metrik, dipakai app3.py
+│   ├── model_loader.py         # load model/metadata + prediksi live + metrik, dipakai app3.py
 │   ├── app.py, app2.py         # versi lama, TIDAK kompatibel dengan model_loader.py saat ini
 │   └── archive/                # snapshot model_loader.py versi-versi sebelumnya
 └── docs/                       # BAB 3, PRD, dan dokumen pendukung lainnya
@@ -60,7 +61,10 @@ lstm-yang-dioptimasi-HHO/
    per horizon (t+1..t+5) dan rata-rata per subset (train/val/test)
 6. **Dashboard**: `dashboard/app3.py` (Streamlit) menampilkan proyeksi, perbandingan
    performa (termasuk DA), dan riwayat data, membaca model dari `models/` lewat
-   `dashboard/model_loader.py`
+   `dashboard/model_loader.py`. Tab "Proyeksi Multi-Hari" mengambil harga **live**
+   (`src/live_data.py`) sebagai basis prediksi — bukan cuma titik terakhir test set
+   statis — dengan badge status 🟢 (live berhasil) / 🟡 (fallback ke CSV historis)
+   dan tombol refresh manual di sidebar.
 
 ## Kriteria Keberhasilan (BAB 3.6.3)
 - MAPE test < 10% untuk kedua model, dengan LSTM+HHO lebih rendah
@@ -120,3 +124,14 @@ lstm-yang-dioptimasi-HHO/
   tersimpan ke `models/`. Jalankan `streamlit run app3.py` dari dalam `dashboard/` untuk
   melihat hasilnya — model belum di-commit ke repo ini (perlu retrain, lihat langkah
   di atas).
+- **Live data & fallback (`src/live_data.py`)**: dashboard mencoba fetch harga terbaru
+  saat prediksi (`get_live_source_data`/`forecast_next_live` di `model_loader.py`), lalu
+  fallback ke CSV historis kalau gagal. `yfinance` (library resmi) paling stabil; `nasdaq`
+  (endpoint publik tidak resmi `api.nasdaq.com`) dan `stooq` (endpoint CSV publik tidak
+  resmi) rawan diblokir/berubah sewaktu-waktu. **Stooq khususnya sering gagal karena
+  proteksi anti-bot** — badge 🟡 (fallback) untuk Stooq adalah perilaku yang DIHARAPKAN,
+  bukan bug; kalau perlu data Stooq lebih baru, update manual `data/nvda_d_stooq.csv`
+  (download dari `stooq.com/q/d/l/?s=nvda.us&i=d` lewat browser, bukan lewat kode —
+  JANGAN mencoba bypass proteksi JavaScript-nya). Live fetch di-cache 5 menit per sumber
+  (`get_live_source_data`), ada tombol "🔄 Refresh Data Live" di sidebar untuk memaksa
+  fetch ulang.
