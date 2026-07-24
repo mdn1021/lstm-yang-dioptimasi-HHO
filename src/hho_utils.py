@@ -1,10 +1,25 @@
 """
 hho_utils.py
 Harris Hawks Optimization untuk mencari hyperparameter LSTM MIMO terbaik
-(units, dropout, learning rate, batch size - 6 dimensi). Objective function
-melatih model pada data yang sudah diproses lewat data_utils.prepare_source
-(raw-price Min-Max, sama seperti baseline), lalu mengembalikan val_loss
-(MSE pada skala harga ternormalisasi) sebagai fitness.
+(units, dropout, learning rate, batch size - 6 dimensi).
+
+Fitness function punya dua mode:
+
+1. Default (reconstruct_price=None) - fitness = val_loss pada skala data
+   yang dipakai untuk training (MSE). Cocok kalau skala training == skala
+   evaluasi akhir (mis. data_utils.py, harga absolut langsung).
+
+2. Reconstruction-aware (reconstruct_price diberikan) - fitness = RMSE
+   validasi pada SKALA HARGA HASIL REKONSTRUKSI (USD), bukan MSE return
+   ternormalisasi. Wajib dipakai kalau training memakai data_utils_return.py
+   (return/percentage-change): val_loss di situ mengukur MSE pada return
+   harian, TIDAK otomatis selaras dengan RMSE harga hasil rekonstruksi
+   (inverse_return_to_price mengakumulasi return via cumulative log-return,
+   jadi kandidat dengan val_loss bagus di skala return bisa saja
+   merekonstruksi buruk di skala harga). Tanpa mode ini, HHO mengoptimasi
+   proxy yang tidak sama dengan kriteria keberhasilan sebenarnya (BAB 3.6.3:
+   RMSE/MAE/DA pada skala harga), sehingga hasil pencarian tidak bisa
+   diandalkan mengalahkan baseline.
 """
 
 import math
@@ -18,7 +33,18 @@ from model_utils import build_lstm_mimo, decode_hyperparameters, DEFAULT_EPOCHS,
 from solution import solution
 
 
-def make_objective_function(X_train, y_train, X_val, y_val, n_input, n_features, n_forecast):
+def make_objective_function(X_train, y_train, X_val, y_val, n_input, n_features, n_forecast,
+                             reconstruct_price=None, scaler=None, base_val=None, y_val_abs=None):
+    """
+    reconstruct_price : callable(scaler, pred_scaled, base_prices, n_forecast) -> harga USD
+                         (mis. data_utils_return.inverse_return_to_price). Kalau None,
+                         fitness = val_loss (skala training), bukan RMSE harga.
+    scaler, base_val, y_val_abs : wajib diisi kalau reconstruct_price diisi.
+    """
+    if reconstruct_price is not None:
+        assert scaler is not None and base_val is not None and y_val_abs is not None, \
+            "scaler, base_val, y_val_abs wajib diisi saat reconstruct_price dipakai"
+
     def objective_function(hyperparameters):
         units1, units2, drop1, drop2, lr, bs = decode_hyperparameters(hyperparameters)
         model = build_lstm_mimo(n_input, n_features, n_forecast, units1, units2, drop1, drop2, lr)
@@ -32,7 +58,12 @@ def make_objective_function(X_train, y_train, X_val, y_val, n_input, n_features,
                 epochs=DEFAULT_EPOCHS, batch_size=bs,
                 shuffle=False, callbacks=[es], verbose=0
             )
-            val_loss = min(history.history['val_loss'])
+            if reconstruct_price is not None:
+                val_pred_scaled = model.predict(X_val, verbose=0)
+                val_pred_price = reconstruct_price(scaler, val_pred_scaled, base_val, n_forecast)
+                val_loss = float(np.sqrt(np.mean((y_val_abs - val_pred_price) ** 2)))
+            else:
+                val_loss = min(history.history['val_loss'])
         except Exception as e:
             print(f"Error: {e}")
             val_loss = np.inf
