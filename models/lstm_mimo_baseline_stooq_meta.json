@@ -1,0 +1,22 @@
+{
+  "model_name": "LSTM MIMO Standar (Baseline)",
+  "source": "stooq",
+  "n_input": 60,
+  "n_forecast": 5,
+  "features": [
+    "Open",
+    "High",
+    "Low",
+    "Close",
+    "Volume"
+  ],
+  "hyperparameters": {
+    "units_1": 128,
+    "units_2": 64,
+    "dropout_rate": 0.2,
+    "learning_rate": 0.001,
+    "batch_size": 32
+  },
+  "normalization": "Return (percentage change) + MinMaxScaler, fit pada train only; rekonstruksi harga via anchor + cumulative log-return",
+  "split": "70/15/15 (walk-forward, time-ordered)"
+}
