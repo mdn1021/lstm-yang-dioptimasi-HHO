@@ -22,7 +22,7 @@ lstm-yang-dioptimasi-HHO/
 │   ├── 02_lstm_mimo_hho_nasdaq_return.ipynb         # Model 2 (Nasdaq)  - CANONICAL
 │   ├── 02_lstm_mimo_hho_stooq_return.ipynb          # Model 2 (Stooq)   - CANONICAL
 │   ├── 02_lstm_mimo_hho_yfinance_return.ipynb       # Model 2 (Yahoo Finance) - CANONICAL
-│   └── (varian lain: raw-price & eksperimen awal — DEPRECATED, lihat Catatan Penting)
+│   └── deprecated/           # raw-price & eksperimen awal — lihat Catatan Penting
 ├── src/                        # Modul Python bersama (dipakai baseline, HHO, dan dashboard)
 │   ├── data_utils_return.py    # CANONICAL: load + return transform + split + scale + dataset MIMO
 │   ├── data_utils.py           # deprecated: versi raw-price (lihat Catatan Penting)
@@ -112,18 +112,19 @@ lstm-yang-dioptimasi-HHO/
      tidak ada di repo sama sekali, sehingga dashboard tidak bisa jalan.
 
   Ketiganya sudah diperbaiki di pipeline `*_return.ipynb` + `src/data_utils_return.py`
-  saat ini. Notebook/modul raw-price (`01_lstm_mimo_baseline_{nas,stooq,yfi}.ipynb`,
-  `02_lstm_mimo_hho_{nasdaq,stooq,yfinance} new.ipynb`, `src/data_utils.py`) tetap
-  disimpan sebagai alternatif/riwayat eksperimen, TIDAK dipakai dashboard, dan punya
-  keterbatasan ekstrapolasi harga di luar rentang training seperti dijelaskan di atas.
-  Notebook lama tanpa modul shared (`02_lstm_mimo_hho_nasdaq.ipynb`, `_stooq.ipynb`,
-  `_yfinance.ipynb`, notebook generik `02_lstm_mimo_hho.ipynb` / `... new.ipynb`) juga
-  **DEPRECATED**, digantikan oleh `02_lstm_mimo_hho_*_return.ipynb`.
-- **Setelah menjalankan ulang notebook** (`01_..._return.ipynb` lalu
-  `02_..._return.ipynb` per sumber data), model (`.h5`) dan metadata (`.json`) akan
-  tersimpan ke `models/`. Jalankan `streamlit run app3.py` dari dalam `dashboard/` untuk
-  melihat hasilnya — model belum di-commit ke repo ini (perlu retrain, lihat langkah
-  di atas).
+  saat ini. Seluruh notebook raw-price & eksperimen awal (baseline non-`_return`, HHO
+  non-`_return`, notebook generik `02_lstm_mimo_hho.ipynb` / `... new.ipynb`) sudah
+  dipindahkan ke `notebooks/deprecated/` supaya tidak membingungkan saat membuka folder
+  `notebooks/` — TIDAK dipakai dashboard, dan punya keterbatasan ekstrapolasi harga di
+  luar rentang training seperti dijelaskan di atas. `src/data_utils.py` (versi raw-price)
+  juga deprecated dengan alasan yang sama.
+- **Status retrain**: baseline (`01_..._return.ipynb`, 3 sumber) SUDAH diretrain dengan
+  pipeline yang sudah diperbaiki ini — `.h5` + `_meta.json` sudah ter-commit di `models/`.
+  HHO (`02_..._return.ipynb`) BELUM — jauh lebih lama dijalankan (jam-an per sumber tanpa
+  GPU) dan mengubah angka yang sudah dilaporkan di thesis, jadi sengaja ditunda sampai
+  ada keputusan eksplisit dari peneliti. Setelah HHO diretrain, jalankan
+  `streamlit run app.py` (atau `app3.py`, tergantung penamaan saat itu) dari dalam
+  `dashboard/` untuk melihat hasilnya di dashboard.
 - **Live data & fallback (`src/live_data.py`)**: dashboard mencoba fetch harga terbaru
   saat prediksi (`get_live_source_data`/`forecast_next_live` di `model_loader.py`), lalu
   fallback ke CSV historis kalau gagal. `yfinance` (library resmi) paling stabil; `nasdaq`
