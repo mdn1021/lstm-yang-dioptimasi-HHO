@@ -47,6 +47,34 @@ lstm-yang-dioptimasi-HHO/
     └── model_loader_return_wip/
 ```
 
+## Cara Menjalankan
+
+### 1. Install dependency
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Jalankan dashboard
+Keenam model (baseline + HHO, 3 sumber data) sudah tersedia di `models/`, jadi dashboard
+bisa langsung dijalankan tanpa training ulang:
+```bash
+streamlit run app.py
+```
+Jalankan dari root repo (bukan dari dalam folder lain). Dashboard akan terbuka di browser
+(default `http://localhost:8501`), menampilkan tab Proyeksi Multi-Hari, Perbandingan
+Performa, dan Riwayat Data untuk ketiga sumber data.
+
+### 3. (Opsional) Retrain model dari awal
+Kalau ingin melatih ulang model dari nol (misalnya setelah `data/` diperbarui), jalankan
+notebook secara berurutan per sumber data — baseline dulu, baru HHO:
+```bash
+jupyter notebook notebooks/01_lstm_mimo_baseline_yfinance_return.ipynb
+jupyter notebook notebooks/02_lstm_mimo_hho_yfinance_return.ipynb
+```
+Ulangi untuk `nasdaq` dan `stooq`. Setiap notebook menyimpan `.h5` + `_meta.json` baru ke
+`models/`, menimpa model yang sudah ada. HHO jauh lebih lama dijalankan (jam-an per sumber
+data tanpa GPU) dibanding baseline.
+
 ## Pipeline Ringkas (BAB 3 & PRD v1.1)
 
 1. **Data**: OHLCV NVDA per sumber (Yahoo Finance, Nasdaq, Stooq), dievaluasi terpisah
