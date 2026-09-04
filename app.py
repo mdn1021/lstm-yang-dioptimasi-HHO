@@ -5,14 +5,18 @@ LSTM MIMO Standar vs LSTM MIMO + HHO, per sumber data (Yahoo Finance, Nasdaq, St
 
 Jalankan dengan:
     streamlit run app.py
-(dari dalam folder dashboard/, dengan model & data sudah tersedia di ../models & ../data)
+(dari root repo, dengan model & data sudah tersedia di models/ & data/)
 """
+
+import os
+import sys
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from model_loader import (
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+from model_loader import (  # noqa: E402
     SOURCES, SOURCE_LABELS, ARCHITECTURES, ARCH_LABELS,
     MODEL_FILENAME, META_FILENAME,
     load_all_models, load_prepared_source, predict_all_splits,

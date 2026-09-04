@@ -14,16 +14,14 @@ untuk kedua arsitektur ini.
 
 import os
 import json
-import sys
 
 import numpy as np
 import streamlit as st
 from tensorflow.keras.models import load_model
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-from data_utils_return import prepare_source_return, inverse_return_to_price, load_source, compute_returns  # noqa: E402
-from evaluation import evaluate, directional_accuracy  # noqa: E402
-from live_data import get_live_or_fallback, merge_with_history  # noqa: E402
+from data_utils_return import prepare_source_return, inverse_return_to_price, load_source, compute_returns
+from evaluation import evaluate, directional_accuracy
+from live_data import get_live_or_fallback, merge_with_history
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), '..', 'models')
 DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
