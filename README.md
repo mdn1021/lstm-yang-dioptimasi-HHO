@@ -10,11 +10,21 @@ dan LSTM yang dioptimasi dengan Harris Hawks Optimization (HHO).
 
 ```
 lstm-yang-dioptimasi-HHO/
-├── data/                      # Dataset mentah per sumber + hasil integrasi
-│   ├── nvda_d_nasdaq.csv
-│   ├── nvda_d_stooq.csv
-│   ├── nvda_day_yfinance.csv
-│   └── nvda_gabungan.csv
+├── README.md
+├── requirements.txt            # streamlit, tensorflow, scikit-learn, pandas, numpy, plotly
+├── .gitignore
+├── .streamlit/
+│   └── config.toml             # tema dashboard (dark, aksen NVIDIA green)
+├── app.py                      # CANONICAL entry point -> `streamlit run app.py` (dari root)
+├── src/                        # Modul Python bersama (dipakai notebook training DAN app.py)
+│   ├── data_utils_return.py    # CANONICAL: load + return transform + split + scale + dataset MIMO
+│   ├── model_loader.py         # load model/metadata + prediksi live + metrik, dipakai app.py
+│   ├── model_utils.py          # arsitektur LSTM MIMO + decode hyperparameter HHO
+│   ├── hho_utils.py            # algoritma Harris Hawks Optimization + objective function
+│   ├── evaluation.py           # RMSE/MAE/MAPE/DA per horizon + tabel ringkasan
+│   ├── solution.py             # kelas pelacak hasil HHO (best individual, convergence, dll)
+│   ├── live_data.py            # fetch OHLCV live (yfinance/nasdaq/stooq) + fallback ke CSV
+│   └── deprecated/             # data_utils.py (versi raw-price) — lihat Catatan Penting
 ├── notebooks/
 │   ├── 01_lstm_mimo_baseline_nasdaq_return .ipynb   # Model 1 (Nasdaq)  - CANONICAL
 │   ├── 01_lstm_mimo_baseline_stooq_return.ipynb     # Model 1 (Stooq)   - CANONICAL
@@ -22,20 +32,19 @@ lstm-yang-dioptimasi-HHO/
 │   ├── 02_lstm_mimo_hho_nasdaq_return.ipynb         # Model 2 (Nasdaq)  - CANONICAL
 │   ├── 02_lstm_mimo_hho_stooq_return.ipynb          # Model 2 (Stooq)   - CANONICAL
 │   ├── 02_lstm_mimo_hho_yfinance_return.ipynb       # Model 2 (Yahoo Finance) - CANONICAL
-│   └── deprecated/           # raw-price & eksperimen awal — lihat Catatan Penting
-├── src/                        # Modul Python bersama (dipakai baseline, HHO, dan dashboard)
-│   ├── data_utils_return.py    # CANONICAL: load + return transform + split + scale + dataset MIMO
-│   ├── model_utils.py          # arsitektur LSTM MIMO + decode hyperparameter HHO
-│   ├── hho_utils.py            # algoritma Harris Hawks Optimization + objective function
-│   ├── evaluation.py           # RMSE/MAE/MAPE/DA per horizon + tabel ringkasan
-│   ├── solution.py             # kelas pelacak hasil HHO (best individual, convergence, dll)
-│   ├── live_data.py            # fetch OHLCV live (yfinance/nasdaq/stooq) + fallback ke CSV
-│   └── deprecated/             # data_utils.py (versi raw-price) — lihat Catatan Penting
+│   └── deprecated/            # raw-price & eksperimen awal — lihat Catatan Penting
 ├── models/                     # Model terlatih (.h5) + metadata JSON (n_input, n_forecast, dll)
-└── dashboard/                  # Aplikasi Streamlit
-    ├── app3.py                 # CANONICAL entry point -> `streamlit run app3.py`
-    ├── model_loader.py         # load model/metadata + prediksi live + metrik, dipakai app3.py
-    └── archive/                 # app.py, app2.py (versi lama) + snapshot model_loader.py sebelumnya
+├── data/                       # Dataset mentah per sumber + hasil integrasi
+│   ├── nvda_d_nasdaq.csv
+│   ├── nvda_d_stooq.csv
+│   ├── nvda_day_yfinance.csv
+│   └── nvda_gabungan.csv
+├── results/                    # Grafik & tabel metrik hasil evaluasi (untuk laporan/sidang)
+└── archive/                    # Versi lama dashboard yang sudah tidak dipakai — lihat Catatan Penting
+    ├── dashboard_app.py
+    ├── dashboard_app2.py
+    ├── model_loader_old/
+    └── model_loader_return_wip/
 ```
 
 ## Pipeline Ringkas (BAB 3 & PRD v1.1)
@@ -57,9 +66,9 @@ lstm-yang-dioptimasi-HHO/
      MSE return ternormalisasi — lihat Catatan Penting
 5. **Evaluasi** (`src/evaluation.py`): RMSE, MAE, MAPE, **dan DA (Directional Accuracy)**
    per horizon (t+1..t+5) dan rata-rata per subset (train/val/test)
-6. **Dashboard**: `dashboard/app3.py` (Streamlit) menampilkan proyeksi, perbandingan
+6. **Dashboard**: `app.py` (Streamlit, jalankan dari root) menampilkan proyeksi, perbandingan
    performa (termasuk DA), dan riwayat data, membaca model dari `models/` lewat
-   `dashboard/model_loader.py`. Tab "Proyeksi Multi-Hari" mengambil harga **live**
+   `src/model_loader.py`. Tab "Proyeksi Multi-Hari" mengambil harga **live**
    (`src/live_data.py`) sebagai basis prediksi — bukan cuma titik terakhir test set
    statis — dengan badge status 🟢 (live berhasil) / 🟡 (fallback ke CSV historis)
    dan tombol refresh manual di sidebar.
@@ -106,7 +115,7 @@ lstm-yang-dioptimasi-HHO/
   2. Bahkan setelah preprocessing disamakan ke return, HHO mengoptimasi val_loss pada
      skala return, bukan RMSE pada skala harga hasil rekonstruksi — proxy yang bisa
      menyesatkan pencarian hyperparameter (lihat poin fitness HHO di atas).
-  3. Modul `src/data_utils_return.py` yang dirujuk `dashboard/model_loader.py` sempat
+  3. Modul `src/data_utils_return.py` yang dirujuk `src/model_loader.py` sempat
      tidak ada di repo sama sekali, sehingga dashboard tidak bisa jalan.
 
   Ketiganya sudah diperbaiki di pipeline `*_return.ipynb` + `src/data_utils_return.py`
@@ -116,12 +125,13 @@ lstm-yang-dioptimasi-HHO/
   `notebooks/` — TIDAK dipakai dashboard, dan punya keterbatasan ekstrapolasi harga di
   luar rentang training seperti dijelaskan di atas. `src/deprecated/data_utils.py`
   (versi raw-price) juga deprecated dengan alasan yang sama, begitu juga
-  `dashboard/archive/app.py` dan `app2.py` (versi lama, tidak kompatibel dengan
-  `model_loader.py` saat ini).
+  `archive/dashboard_app.py` dan `archive/dashboard_app2.py` (versi lama dashboard,
+  sebelum entry point disatukan jadi `app.py` di root — tidak kompatibel dengan
+  `src/model_loader.py` saat ini).
 - **Status retrain**: keenam model (baseline DAN HHO, 3 sumber data) SUDAH diretrain
   dengan pipeline yang sudah diperbaiki ini — `.h5` + `_meta.json` seluruhnya sudah
-  ter-commit di `models/`. Jalankan `streamlit run app3.py` dari dalam `dashboard/`
-  untuk melihat hasilnya di dashboard.
+  ter-commit di `models/`. Jalankan `streamlit run app.py` dari root repo untuk
+  melihat hasilnya di dashboard.
 - **Live data & fallback (`src/live_data.py`)**: dashboard mencoba fetch harga terbaru
   saat prediksi (`get_live_source_data`/`forecast_next_live` di `model_loader.py`), lalu
   fallback ke CSV historis kalau gagal. `yfinance` (library resmi) paling stabil; `nasdaq`
