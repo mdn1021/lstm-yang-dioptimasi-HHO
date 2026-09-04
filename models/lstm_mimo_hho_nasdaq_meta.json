@@ -1,0 +1,22 @@
+{
+  "model_name": "LSTM MIMO + HHO",
+  "source": "nasdaq",
+  "n_input": 60,
+  "n_forecast": 5,
+  "hyperparameters": {
+    "units_1": 256,
+    "units_2": 48,
+    "dropout_rate_1": 0.1591975454040316,
+    "dropout_rate_2": 0.5,
+    "learning_rate": 0.01,
+    "batch_size": 128
+  },
+  "hho_search": {
+    "search_agents_no": 5,
+    "max_iter": 10,
+    "num_runs": 3,
+    "best_fitness_rmse_usd": 7.595168033027446
+  },
+  "normalization": "MinMaxScaler pada percentage change (return) per-fitur, fit pada train only",
+  "split": "70/15/15 (walk-forward, time-ordered)"
+}
